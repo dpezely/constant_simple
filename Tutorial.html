@@ -1,0 +1,701 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+            "http://www.w3.org/TR/html4/loose.dtd">
+
+<html>
+<head>
+<META http-equiv="Content-Type" content="text/html; charset=ISO-8859-1" />
+<META name="copyright" content="Copyright © 2003 Daniel Joseph Pezely" />
+<title>Tutorial: Writing A Simple Shader Extension For Mental Ray &amp; XSI</title>
+<STYLE type="text/css"><!--
+body { font-family: helvetica,arial,sans-serif; margin-left: 10%; margin-right: 10%; }
+.title { text-align: center; }
+.headline { font-size: 150%; font-weight: bold; }
+.caption { font-size: 120%; }
+.contact { text-decoration: none; }
+span.at { font-style: italic; font-family: serif; font-size: 75%; }
+h1 { font-size: 120%; }
+h2 { margin-left: -5%; font-size: 115%; }
+h3 { margin-left: -3%; font-size: 110%; }
+smallcaps { font-variant: small-caps; }
+small { font-size: 90%; }
+.small { font-size: 90%; }
+.copr { font-size: 75%; text-align: right; }
+.footer { font-size: 75%; text-align: right; }
+.silent { text-decoration: none; }
+.toc { font-family: helvetica,arial,sans-serif; font-size: 90%; }
+.toc a { text-decoration: none; }
+.toc ul, .toc ol { margin-left: 1%; margin-right: -3%; line-height: 1em; }
+.toc li { line-height: 1em; }
+--></STYLE>
+
+</head>
+<body>
+
+<div class="title">
+<span class="headline">
+				  Tutorial:
+<br>		     Writing A Simple Shader Extension
+<br>			    For Mental Ray &amp; XSI
+</span>
+
+<p class="caption">
+			 Creating A Constant Shader
+<br>			   For Minimal Complexity
+</p>
+
+<p class="contact">
+Daniel Joseph Pezely
+<br>www.play.org
+<br>22 January 2003
+</p>
+
+</div>
+<hr>
+
+<h2> C<span class="smallcaps">ontents</span></h2>
+
+<div class="toc" id="Contents">
+<ol>
+<li><a href="#Introduction"
+	>Introduction</a>
+<li><a href="#Overview"
+	>Overview</a>
+<li><a href="#CSB"
+	>Custom Shader Basics</a>
+<li><a href="#SC"
+	>Source Code</a>
+<li><a href="#BFS"
+	>Building From Source</a>
+<ul>
+    <li><a href="#ULaI"
+		>Unix: Linux and Irix</a>
+    <li><a href="#Windows"
+		>Windows</a>
+    <li><a href="#WWC"
+		>Windows With Cygwin</a>
+</ul>
+<li><a href="#UTCS"
+	>Using The Custom Shader</a>
+<li><a href="#VTSRW"
+	>Verifying The Shader Really Works</a>
+<li><a href="#UBR"
+	>Uninstall Before Reinstalling </a>
+<li><a href="#Summary"
+	>Summary</a>
+<li><a href="#FR"
+	>Further Reading</a>
+</ol>
+</div>
+
+<div class="article">
+
+
+
+<p>
+<h2 id="Introduction">
+<span class="sectionNumber">1.</span>
+	 I<span class="smallcaps">ntroduction</span>
+</h2></p>
+<p>
+You will learn the least you need to know to author a custom shader for
+Mental Ray 3.1 and have it function within Softimage XSI 3.0.  This should
+work with older versions also.
+</p>
+<p>
+It's helpful being familiar with rendering either as an artist using a 3D
+modeling package or as a programmer with a basic working knowledge of ray
+tracing.
+</p>
+<p>
+Hopefully you understand programming principles such as what an object or
+data structure is.  You should also know what a Property Page within
+Softimage XSI is.  It's helpful to have used some of the standard shaders
+bundled with XSI and Mental Ray.
+</p>
+<p>
+(But if you're a software developer unfamiliar with XSI, I'll supply the
+least you need to know about XSI and its interface to see that this thing
+really works.)
+</p>
+<p>
+<h2 id="Overview">
+<span class="sectionNumber">2.</span>
+	 O<span class="smallcaps">verview</span>
+</h2></p>
+<p>
+Let's create the simplest of shaders for the Mental Ray rendering engine:
+the constant material.  There's no distinction between ambient or diffuse
+colors.  The entire geometry object appears as a single, solid color blob
+without definition beyond its silhouette.
+</p>
+<p>
+An associated Property Page within Softimage XSI enables the artist to
+adjust only one parameter: color value.  
+</p>
+<p>
+This is intended to be the simplest yet complete case.
+</p>
+<p>
+From an engineer's perspective, it does almost nothing but does it
+correctly.
+</p>
+<p>
+From the artist's perspective, however, once this custom shader has been
+installed, there should be no difference between how this option is used
+versus any standard feature built into the software as supplied by the
+vendor.
+</p>
+
+<p>
+<h2 id="CSB">
+<span class="sectionNumber">3.</span>
+	 C<span class="smallcaps">ustom</span> S<span class="smallcaps">hader</span> B<span class="smallcaps">asics</span>
+</h2></p>
+<p>
+Shaders tap into the rendering pipeline via data structures:
+</p>
+<p>
+<ol>
+<li> one structure for receiving parameters supplied by the artist such as
+color selection,
+<li> one structure for receiving vectors describing a ray of light and its
+associated color value and
+<li> one structure for resulting color values that may be passed to another
+shader in the pipeline.
+</ol>
+</p>
+<p>
+Shaders do their work by examining yet another data structure for the
+associated geometry object.  So if the object selected is a polygon mesh
+torus, you have access to its internals as if Mental Ray was just a strange
+database and XSI was its data entry front-end.  (This fourth structure is
+accessible via library calls and referencing the structure containing input
+parameters.)
+</p>
+<p>
+Parameters from the XSI Property Page are passed through a shader-specific
+data structure.  By convention, this gets a name matching your shader.
+</p>
+<p>
+Since our shader is called "constant_simple", the data structure is called
+"constant_simple_params".
+</p>
+<p>
+Mental Ray has its own data types for just about everything.  Color values
+are contained within a type, "miColor".  Other values are held within
+"miScalar".
+</p>
+<p>
+When extracting values from the primary data structures, it's important to
+use macros defined in "shader.h".  (Find this include file within the XSI
+SDK; see <a href="makefile.linux" >makefile</a>.)
+</p>
+<p>
+Apart from C/C++ code and resulting shared libraries, XSI needs to be
+informed about the add-on.  There is an interface file that looks like a
+Unix shell script.  Mental Ray has its ".mi" file (meaning Mental Images,
+the vendor of Mental Ray), and Softimage has its own file format.  SPDL is
+Softimage Plug-in Definition Language, and the associated file extension is,
+oddly enough, ".spdl".
+</p>
+
+
+
+<p>
+<h2 id="SC">
+<span class="sectionNumber">4.</span>
+	 S<span class="smallcaps">ource</span> C<span class="smallcaps">ode</span>
+</h2></p>
+<p>
+The coding style builds upon examples provided by Softimage.  (Specifically,
+see the "show_edges" example provided with the XSI SDK documentation.)
+</p>
+<p>
+See the <a href="constant_simple.cpp" >C++ source</a> and <a href="constant_simple.h" >header</a>
+files for the "constant_simple" example.  Both files are simple enough that
+it's easier for a programmer to read the code than to explain it here.
+</p>
+<p>
+Perhaps more important to a tutorial is the 
+<a href="constant_simple.spdl" >SPDL file</a>.
+</p>
+<p>
+The Shader Wizard supplied by Softimage creates templates of a C++ file and
+the various associated files like the SPDL.  The templates should compile
+under both Unix and Windows.
+</p>
+<p>
+Optionally, you can take the files provided with this tutorial and expand
+upon them.  Keep this in mind!  There's nothing special about what the
+Wizard creates.  It merely spares you from having to perform search and
+replace.  Converting from existing files is handy especially if using
+Mozilla.  (For Unix folks, the Shader Wizard seems to only like the Java VM
+plug-in that ships with RedHat and Netscape's branded browser.)
+</p>
+<p>
+The tutorial files were created without directly using the Wizard, including
+the SPDL file.
+</p>
+
+<p>
+<p id="SPDL"><b>Softimage Plug-in Definition Language (SPDL)</b></p></p>
+<p>
+Within the SPDL file, there is a GUID parameter with a value of
+"1AC592BF-DEA4-11d5-92BD-009027219F81".  There are other parameters with
+similar looking values.  
+</p>
+<p>
+These values are not random and must be preserved!
+</p>
+<p>
+Each Parameter that needs to appear within the XSI Property Page (GUI)
+should have the same key as above.  Likewise, all outputs have their own.
+</p>
+<p>
+(Why this level of detail has been imposed on the programmer rather than
+being optional reflects that Softimage was momentarily owned by Microsoft
+while XSI was being developed.)
+</p>
+<p>
+The PropertySet defines the inputs and outputs familiar to anyone who has
+used the XSI render nodes.  Most material shaders would have "diffuse" and
+"ambient" inputs and a single "out" or output.
+</p>
+<p>
+The first one from the PropertySet belongs to the output parameter.  With
+most shaders, the type will be a color value.
+</p>
+<p>
+The second parameter is "color".  I could have used another name such as
+"insideColorValue" but instead kept things simple.  This also demonstrates
+that there are separate name spaces within the render mechanism.
+</p>
+<p>
+The "title" associated with each input or output parameter provides the
+ToolTip pop-up text when using the render view (network diagram of shader
+nodes).  And there's another one mentioned below regarding a ToolTip in the
+PropertyPage (GUI).
+</p>
+<p>
+The values for our particular input are a white-space delimited list of
+numerical Floats.  Legal values for colors are between 0.0 and 1.0,
+inclusively.
+</p>
+<p>
+The following means: Use Red at 75%, Green at 12%, Blue at 80% and set the
+Alpha channel mask to opaque.
+</p>
+<p>
+<pre>
+value = 0.75 0.12 0.80 1.0;
+</pre>
+</p>
+<p>
+Even if the XSI artist has his or her workstation configured to use
+Hue/Saturation/Value (HSV) instead of RGB, the application deals with the
+conversion.  Programmers must use RGB.
+</p>
+<p>
+Other member values within the input and output parameters should be
+straight-forward to anyone familiar with using XSI.  (Shader programmers
+should have a day-long overview of XSI at minimum before changing these
+additional values.)
+</p>
+<p>
+Further down the SPDL file, the "Defaults" section seems to repeat some of
+the parameters.  The "description" associated with each input or output
+parameter provides the ToolTip pop-up text when using the XSI Property Page
+(GUI).  Although this will typically be identical to the previous one for
+the render node, sometimes it will be appropriate to have different wording
+from a usability stand-point.
+</p>
+<p>
+The filename is specified in the final section.  For everyone's sanity, just
+keep the names consistent through all files and structures.
+</p>
+
+
+<p>
+<h2 id="BFS">
+<span class="sectionNumber">5.</span>
+	 B<span class="smallcaps">uilding</span> F<span class="smallcaps">rom</span> S<span class="smallcaps">ource</span>
+</h2></p>
+<p>
+You must have an installed and configured version of Softimage XSI with the
+SDK.  While the demo version should be able to use the add-on, you need the
+full version for compiling.
+</p>
+<p>
+<h3 id="ULaI">Unix: Linux and Irix</h3></p>
+<p>
+<pre>
+% tar zxf constant_simple.tgz
+% cd constant_simple
+</pre>
+</p>
+<p>
+There are separate versions of the "makefile" for <a href="makefile.linux" >Linux</a>
+versus <a href="makefile.irix" >Irix</a>.  (On Linux, the test build used Mandrake 9.0
+so RedHat should work fine; for Slackware, you'll require tweaking.)
+</p>
+<p>
+Compile the source and install it.  A <a href="make.sh" >make script</a> is supplied to
+ensure the proper environment variables are defined.
+</p>
+<p>
+<pre>
+% ./make.sh -f makefile.linux all install
+</pre>
+</p>
+<p>
+Or
+</p>
+<p>
+<pre>
+% ./make.sh -f makefile.irix all install
+</pre>
+</p>
+<p>
+During installation, XSI will run in batch mode without any associated
+windows or panels.  (Depending upon the software license available to you,
+it may use the actual Batch mode or possibly Enterprise mode.)  This may
+take a few minutes to load-- be patient.
+</p>
+<p>
+Assuming it installed without errors, start XSI normally.
+</p>
+<p>
+The add-on should appear in the "User" path from the
+Render-&gt;Texture-&gt;More... pop-up.  
+(More about use and testing <a href="#Using The Custom Shader" >below</a>.)
+</p>
+
+
+
+<p>
+<h3 id="Windows">Windows</h3></p>
+<p>
+For the non-Unix crowd, there is a <a href="constant_simple.dsp" >.dsp file</a> in the
+tar file.  It was adapted from a custom shader example written by Softimage.
+Good luck.
+</p>
+
+<p>
+<h3 id="WWC">Windows With Cygwin</h3></p>
+<p>
+If you have XSI with the SDK on Windows and have installed Cygwin, follow
+these commands.
+</p>
+<p>
+NOTE: Understand that the final step is untested.  I have been unable to
+find a Windows XSI installation that has the SDK, so final compiling and
+linking known to work under Unix can only be theorized to work here.  Most
+of the legwork, however, has been done for you.  You should only need to
+copy and paste the commands below, building with the scripts provided.
+</p>
+<p>
+The only compiler tested was GNU g++/gcc 3.2 via Cygwin.
+</p>
+<p>
+See <a href="http://sources.redhat.com/cygwin/" >http://sources.redhat.com/cygwin/</a>
+</p>
+<p>
+If you have the Cygwin utilities (Bash, Perl, gnu compilers, etc), try the
+following.
+</p>
+<p>
+First, copy the shader source files to the cygwin directory:
+</p>
+<p>
+<pre>
+% cd cygwin
+% ln -s ../constant_simple* .
+</pre>
+</p>
+<p>
+Convert the Windows command/batch file, Setenv.bat, to a CSH script file.
+"C:/Softimage/XSI_*/Application/bin/Setenv.bat" becomes "Setenv.csh".
+</p>
+<p>
+Fortunately, much of the syntax used here converts directly and scripts are
+provided.  Use either <a href="cygwin/bat2sh.pl" >bat2sh.pl</a> or
+<a href="cygwin/bat2csh.pl" >bat2csh.pl</a>, depending upon whether you use Bash/ash/sh
+or tcsh/csh, respectively.
+</p>
+<p>
+From the directory including the makefile, run:
+<pre>
+% ENVBAT=/cygdrive/c/Softimage/XSI_3.0/Application/bin/
+% ./bat2sh.pl $ENVBAT/Setenv.bat &gt; XSI_Setenv.sh
+</pre>
+</p>
+<p>
+(Depending upon your workflow, you might also want to convert your workgroup
+environment variables,
+~/Softimage/XSI_*/Addons/workgroup_shader_plugins.bat, by saving an
+equivalent .csh file in that same directory-- not our source directory.)
+</p>
+<p>
+Perform the compilation.  Install and test as you would with the Unix
+versions.
+</p>
+<p>
+<pre>
+% ./make.sh all install
+</pre>
+</p>
+<p>
+The only change is that there is an <a href="cygwin/XSI.sh" >XSI.sh</a> file in our
+"cygwin" directory for Bash/sh and <a href="cygwin/XSI.csh" >another</a> for tcsh/csh.
+To launch XSI from the command-line, be sure to use one of these scripts.
+</p>
+<p>
+You should, however, be able to just launch XSI from the Windows Start menu
+or desktop icon as normal.
+</p>
+
+
+<p>
+<h2 id="UTCS">
+<span class="sectionNumber">6.</span>
+	 U<span class="smallcaps">sing</span> T<span class="smallcaps">he</span> C<span class="smallcaps">ustom</span> S<span class="smallcaps">hader</span>
+</h2></p>
+<p>
+Assuming the custom shader was compiled and installed without errors from
+the previous steps, start XSI as you normally would.
+</p>
+<p>
+Create an object such as a polygon mesh torus or cube, then apply the magic
+texture.  (Press F1 to bring up the Model menu on the left side, then select:
+Get-&gt;Primitive-&gt;Polygon&nbsp;Mesh-&gt;Torus)
+</p>
+<p>
+From the Render menu (F3), select Get-&gt;Texture-&gt;More....  A pop-up window
+appears.  Go to the "Paths" pull-down in the upper left corner of the
+pop-up.  Change the path to "User".
+</p>
+<p>
+From the list of files, you should see "constant_simple".  Select this, then
+click "OK".
+</p>
+<p>
+If you are prompted for whether to create a local material, click Yes.
+</p>
+
+<p>
+<h2 id="VTSRW">
+<span class="sectionNumber">7.</span>
+	 V<span class="smallcaps">erifying</span> T<span class="smallcaps">he</span> S<span class="smallcaps">hader</span> R<span class="smallcaps">eally</span> W<span class="smallcaps">orks</span>
+</h2></p>
+<p>
+The default way in which XSI loads a custom texture is to chain it through
+the scene default material such as Phong.
+</p>
+<p>
+Because of this, be skeptical as to whether the custom add-on is doing the
+work or if built-in functionality is providing the effect.
+</p>
+<p>
+Bring up the Render view.  (Assuming you have the usual four view panels
+with your object appearing from a different angle in each-- move the mouse
+to one of the bottom panels and press 7.  Or from that viewport's title bar
+pull-down menu, change to "Render Tree".)
+</p>
+<p>
+You should see the network diagram with "constant_simple" on the left,
+"Scene Material" on the right and a few nodes in between.
+</p>
+<p>
+Remap the connections from our shader to the Scene Material, bypassing
+everything in between.
+</p>
+<p>
+Connect the "constant_simple" node output to three of the "scene material"
+inputs: "Surface", "Shadow" and "Photon".  (Drag from the red dot in the
+upper right corner of "constant_simple" node to inside "scene material".
+From the pop-up, select "shadow".  Repeat for the other two parameters.
+These parameters and only these should have a dot next to their names in the
+pop-up, making it easier to find them.)
+</p>
+<p>
+Some of the the original connections are still there, so next, we delete
+them.
+</p>
+<p>
+Leave only the "constant_simple" and "scene material" nodes and of course
+the connections we just established.  (Hold the space bar while selecting
+with the mouse: draw a box around or through the unwanted nodes.  Make sure
+only unwanted items become white, then press Delete.)
+</p>
+<p>
+Let's see it work.
+</p>
+<p>
+Create a render region around the object in one of the viewports if you
+haven't done so already.  (Move the mouse to a panel with the wireframe
+object.  While holding the "q" key, diagonally drag a box around the object.
+Release the q key.)
+</p>
+<p>
+Fiddle with the color value for the custom shader.  (While holding the space
+bar, click on the "constant_simple" node in the Render window.  Release the
+space bar.  Press Alt+Enter and the Property Page should appear if it wasn't
+up already.  Using the color slider should be obvious, but to change from
+HSV to RGB or vice-versa, click on the button just to the left of the color
+slider.)
+</p>
+<p>
+Notice that the parameter is called "color" and is identical to the
+parameter named in the SPDL and C++ files.
+</p>
+<p>
+Move the color slider in the Property Page, and watch the color change in
+the render region!
+</p>
+
+<p>
+<h2 id="UBR">
+<span class="sectionNumber">8.</span>
+	 U<span class="smallcaps">ninstall</span> B<span class="smallcaps">efore</span> R<span class="smallcaps">einstalling</span>
+</h2></p>
+<p>
+Before re-installing a custom shader, you must first uninstall it.  
+</p>
+<p>
+XSI kindly reminds you of this, should you happen to forget.
+</p>
+<p>
+<pre>
+% ./make.sh -f makefile.linux uninstall
+</pre>
+</p>
+<p>
+Or
+</p>
+<p>
+<pre>
+% ./make.sh -f makefile.irix uninstall
+</pre>
+</p>
+<p>
+Or for Cygwin
+</p>
+<p>
+<pre>
+% cd cygwin
+% ./make.sh uninstall
+</pre>
+</p>
+<p>
+It's recommended that you use XSI via batch mode to remove the add-on rather
+than just walking the directory tree and deleting files.
+</p>
+
+
+<p>
+<h2 id="Summary">
+<span class="sectionNumber">9.</span>
+	 S<span class="smallcaps">ummary</span>
+</h2></p>
+<p>
+You have a complete set of C++ and the supporting SPDL files to create a
+simple shader.  It does almost nothing but does it properly.
+</p>
+<p>
+Regarding the possibilities, this example barely makes a dent.
+</p>
+<p>
+If what you observed here appeals to you at all, jump into shader
+development.
+</p>
+
+
+
+<p>
+<h2 id="FR">
+<span class="sectionNumber">10.</span>
+	 F<span class="smallcaps">urther</span> R<span class="smallcaps">eading</span>
+</h2></p>
+<p>
+This example shader started life as a baby Rubik's cube example supplied by
+Mental Images in their manual on the Softimage web site.
+</p>
+<p>
+<a href="http://www.softimage.com/support/xsi/private/userguides/3.0/files/mental_ray/manual/ray-3_29Example_Scene_with_Cust.html" >http://www.softimage.com/support/xsi/private/userguides/3.0/files/mental_ray/manual/ray-3_29Example_Scene_with_Cust.html</a>
+</p>
+<p>
+(TIP: If any softimage.com links require a password, replace "3.0" in the
+URL with "2.0.2" or "2.0" and supply "index.html" or "ray-Content.html"
+filename instead of directly browsing a directory.)
+</p>
+<p>
+Or look for "Example Scene" under "Using and Writing Shaders" here:
+<a href="http://www.softimage.com/support/xsi/private/userguides/2.0/files/mental_ray/manual/ray-Contents.html" >http://www.softimage.com/support/xsi/private/userguides/2.0/files/mental_ray/manual/ray-Contents.html</a>
+</p>
+
+<p>
+A little reverse-engineering and simplifying the code created our example.
+</p>
+
+<p>
+Want to go further, making your own custom shader extension for XSI and
+Mental Ray?
+</p>
+<p>
+First understand the basics:
+</p>
+<p>
+<a href="http://www.softimage.com/support/xsi/private/userguides/2.0.2/files/docs/html/shade/shaderbasics.html" >http://www.softimage.com/support/xsi/private/userguides/2.0.2/files/docs/html/shade/shaderbasics.html</a>
+</p>
+
+<p>
+Play with some custom shaders and presets from other people's development efforts:
+</p>
+<p>
+<a href="http://www.highend3d.com/xsi/shaders/" >http://www.highend3d.com/xsi/shaders/</a>
+</p>
+<p>
+<a href="http://www.softimage.com/xsinet/Addon_display_abstract.asp?family=XNET&amp;software=XSI&amp;catid=612&amp;parent=51&amp;child=Shaders" >http://www.softimage.com/xsinet/Addon_display_abstract.asp?family=XNET&amp;software=XSI&amp;catid=612&amp;parent=51&amp;child=Shaders</a>
+</p>
+
+<p>
+Browse through the Mental Ray manual:
+</p>
+<p>
+<a href="http://www.softimage.com/support/xsi/private/userguides/2.0.2/files/mental_ray/manual/ray-Contents.html" >http://www.softimage.com/support/xsi/private/userguides/2.0.2/files/mental_ray/manual/ray-Contents.html</a>
+</p>
+
+
+
+
+<p>
+Look at examples.
+</p>
+<p>
+There's one bundled with the XSI SDK.  The shader reveals all triangles on
+an object's surface.  It provides minimal parameters from within an XSI
+Property Page:
+</p>
+<p>
+<a href="http://www.softimage.com/support/xsi/private/userguides/2.0.2/files/docs/html/sdk/casestudies/cs_showedge.html" >http://www.softimage.com/support/xsi/private/userguides/2.0.2/files/docs/html/sdk/casestudies/cs_showedge.html</a>
+</p>
+
+
+<p>
+Finally, get THE BOOK:
+</p>
+<p>
+<a href="http://www.springer.at/main/book.jsp?bookID=3-211-83851-1&amp;categoryID=3" >http://www.springer.at/main/book.jsp?bookID=3-211-83851-1&amp;categoryID=3</a>
+</p>
+<p>
+ISBN 3-211-83851-1 
+</p>
+<p>
+<a href="http://www.Powells.com/search/DTSearch/search?author=Driemeyer" >http://www.Powells.com/search/DTSearch/search?author=Driemeyer</a>
+</p>
+
+
+<hr>
+<div class="copr">Copyright © 2003
+Daniel Joseph Pezely</div>
+</body></html>

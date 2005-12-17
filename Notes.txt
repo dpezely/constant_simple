@@ -1,0 +1,6 @@
+
+This shader started life as a baby Rubik's cube example supplied by Mental
+Images in their manual on the Softimage web site.
+
+http://www.softimage.com/support/xsi/private/userguides/3.0/files/mental_ray/manual/ray-3_29Example_Scene_with_Cust.html
+

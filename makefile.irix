@@ -1,0 +1,83 @@
+#******************************************************************************
+#* Created: 14 January 2003
+#* Author:  Daniel Joseph Pezely <Pez@play.org>
+#*
+#******************************************************************************
+
+BASEFILENAME := constant_simple
+
+CDEFS := $(CDEFS)
+CINCS := $(CINCS) -I/usr/include/Xm -IUI -I$(XSISDK_ROOT)/include -I. -I/usr/include
+
+
+CC    := cc
+CPP   := CC
+OPTIMIZED := -O2
+MIPS      := -mips3 -n32
+COPTS     := $(COPTS) $(OPTIMIZED) $(MIPS) -Xcpluscomm
+CPPOPTS   := $(CPPOPTS) $(OPTIMIZED) $(MIPS)
+LDFLAGS   := -L/usr/lib32 $(MIPS)
+
+
+CFLAGS    := $(CINCS) $(CDEFS) $(COPTS)
+CPPFLAGS  := $(CINCS) $(CDEFS) $(CPPOPTS)
+LDFLAGS   := -shared -L$(SI_HOME)/Application/bin -L$(XSISDK_ROOT)/lib $(LDFLAGS)
+DEPLIBS   := -lm
+
+SOURCEFILES = \
+   $(BASEFILENAME).cpp \
+   $(END_OF_LIST)
+
+CPPOBJS   := $(patsubst %.cpp, objs/%.o, $(filter %.cpp,$(SOURCEFILES)))
+COBJS     := $(patsubst %.c, objs/%.o, $(filter %.c,$(SOURCEFILES)))
+OBJS      := $(CPPOBJS) $(COBJS)
+
+HFILES = \
+   $(BASEFILENAME).h \
+   $(END_OF_LIST)
+
+.phony: depend all
+
+all:		bin run/$(BASEFILENAME).so $(BASEFILENAME).spdl
+
+ifeq "$(NODEP)" ""
+   include makefile.dep
+endif
+
+
+depend:	makefile.dep
+
+makefile.dep: $(SOURCEFILES) $(HFILES)
+	@-rm -f $@; touch $@
+	@echo Building $@
+
+$(CPPOBJS): objs/%.o: %.cpp
+	@-if [ ! -d "$(dir $@)" ]; then mkdir -p "$(dir $@)"; fi
+	$(CPP) -c $(CPPFLAGS) $< -o $@
+
+$(COBJS): objs/%.o: %.c
+	@-if [ ! -d "$(dir $@)" ]; then mkdir -p "$(dir $@)"; fi
+	$(CC) -c $(CFLAGS) $< -o $@
+
+bin:	$(CPPOBJS) $(COBJS) 
+	@-if [ ! -d "$(dir $@)" ]; then mkdir -p "$(dir $@)"; fi
+
+run/$(BASEFILENAME).so: run/%.so: objs/%.o $(BASEFILENAME).spdl
+	@-if [ ! -d "$(dir $@)" ]; then mkdir -p "$(dir $@)";fi
+	ld $(LDFLAGS) $(OBJS) $(DEPLIBS) -o $@
+	@echo $@ is up to date
+
+clean:
+	@-rm -f *~ core *.dep $(BIN)
+	@-rm -rf objs
+	@-rm -rf run
+	@echo Project cleaned
+
+install: all
+	@echo "Please wait while XSI loads in batch mode..."
+	$(XSI_BINDIR)/xsi -i $(BASEFILENAME).spdl
+
+uninstall:
+	@echo "Removing SPDL file for $(BASEFILENAME)"
+	@echo "Please wait while XSI loads in batch mode..."
+	$(XSI_BINDIR)/xsi -u $(BASEFILENAME).spdl
